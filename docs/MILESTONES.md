@@ -205,10 +205,26 @@ Principal
 └── createdAt / revokedAt
 ```
 
-- [ ] Define in `packages/protocol`
-- [ ] **Deliberate omission:** no field holds a raw secret. Ever. If you need one, the design
-      is wrong.
-- [ ] Serialize/deserialize round-trip tests
+- [x] Define in `packages/protocol` (2026-09-28) — `src/principal.ts`, 12 tests
+- [x] **Deliberate omission:** no field holds a raw secret. Made structural, not conventional
+- [x] Serialize/deserialize round-trip tests
+- [ ] `decided_by` enforcement wired to a real `approvals` table (phase 2 — needs the DO)
+
+**The omission is structural, which is the only reason to believe it.** `DATA-MODEL.md` §2 says
+in capitals that no column may hold a raw credential, and §4 asks for "a test that scans for it.
+Not a code-review convention." So: `Principal` has no `token`/`secret`/`apiKey` field;
+`parsePrincipal` **rejects unknown fields**, so a secret cannot ride in through an untyped JSON
+bag; and the tests grep serialized principals _and_ grants for nine secret shapes — Anthropic,
+OpenAI, GitHub, AWS, Slack, Google, PEM private keys, JWTs, and `api_key=`-style assignments.
+
+The scanner carries a **positive control** that plants a real-looking AWS key and requires
+detection. Without it, a scanner matching nothing would pass every other test in the file and
+look convincingly green.
+
+**Also decided here, and worth writing down:** `CapabilityGrant.expiresAt` is a _required_ field
+in the type. `DATA-MODEL.md` §2 marks it "**required.** Default lease 1 hour, per D-008" — so a
+permanent grant is now unrepresentable rather than merely discouraged, which is what
+`PROTOCOL.md` §6 actually asks for.
 
 ### 1.2 — Credential broker
 
@@ -222,6 +238,14 @@ traffic is brokered. The raw credential never enters agent context or memory.
 - [ ] Audit every request: principal, capability, decision, timestamp
 - [ ] Loopback only, per-launch nonce, unguessable
 - [ ] **No secret in any log line, ever** — add a test that greps for it
+
+**NOT STARTED, deliberately.** The proxy, revocation and audit are all buildable today, but real
+credential scoping is not: it needs live provider keys for Anthropic/OpenAI/Google/xAI. A broker
+that looks finished while credentials escape would be the single worst thing this project could
+ship — it makes the pitch true-looking and false, which is the failure mode everything else here
+exists to prevent. The contract is now concrete (`CapabilityGrant` in `packages/protocol`), which
+is what makes building it safe rather than speculative. It should not be called done until a real
+key has been scoped, revoked, and shown unreachable from agent context.
 
 CAUTION: **The one hard invariant, from agent-vault:** a value that must not leak must be
 _structurally_ unreachable, not merely "we chose not to log it." agent-vault enforces this
@@ -254,10 +278,39 @@ native sandbox; per-runtime behavior differs. Budget for it and write the matrix
 The primitive oar explicitly declines: _"Ownership is the object reference; no in-process
 lease. Multi-controller arbitration belongs to the application layer."_
 
-- [ ] One controller per session; leases are the exclusive claim
-- [ ] Clock-skew tolerance (leases expire on observation, not on the holder's clock)
-- [ ] A new controller can take over a dead one
-- [ ] Split-brain is impossible — **test it, don't reason about it**
+- [x] One controller per session; leases are the exclusive claim (2026-09-28)
+- [x] Clock-skew tolerance (leases expire on observation, not on the holder's clock)
+- [x] A new controller can take over a dead one
+- [x] Split-brain is impossible — **tested, not reasoned about**
+- [x] Wall-clock rollback cannot extend a lease (D-008 Q4)
+
+`packages/protocol/src/lease.ts`, 13 tests. This is the highest-leverage item in Phase 1,
+because it is what turns three _prose_ invariants into enforced code:
+
+| Invariant | Now enforced by                                   | Was            |
+| --------- | ------------------------------------------------- | -------------- |
+| **I3**    | `assertWritable` refuses an expired lease         | specified only |
+| **I5**    | a stale epoch is rejected on every write          | specified only |
+| **I14**   | a rewound `Date.now()` cannot revive a dead lease | specified only |
+
+`check:invariants` now reports the split honestly — `11 specified only, 3 enforced in code,
+1 verified against vendored source` — instead of implying the whole table was prose.
+
+**Expiry is computed from `process.hrtime`, never `Date.now()`.** The user owns the wall clock;
+a lease enforced against it can be extended by one `date` command. The wall clock is recorded in
+the anchor for audit and never consulted for expiry.
+
+**The restart case is the subtle one, and D-008 calls it out by name.** A restart _resets_ the
+monotonic clock, so its reading is meaningless across a restart. `LeaseManager.restore` adopts a
+persisted anchor — and **drops** any lease whose window already elapsed while the process was
+down. Reviving it would let a rewound clock resurrect a dead lease, which is the entire attack
+the monotonic design exists to stop.
+
+**Split-brain is tested, not argued.** The test acquires a lease, lets it expire, takes it over,
+then has the _original holder_ — which has no idea it lost anything — attempt five writes. All
+five are refused on the epoch. The same test proves a stale holder cannot renew, release, or
+extend the new holder's lease. A mutation removing the epoch check, dropping the expiry check,
+switching expiry to `Date.now()`, or freezing the epoch counter each fail the suite.
 
 ### 1.5 — Invariant checker
 

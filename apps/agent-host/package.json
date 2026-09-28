@@ -1,0 +1,25 @@
+{
+  "name": "@graycode/radius-host",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Radius agent host — supervised local process that runs agent sessions",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --import tsx --test test/*.test.ts",
+    "dev": "node --import tsx src/main.ts"
+  },
+  "dependencies": {
+    "@botiverse/oar": "0.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # oar declares engines.node >=24.0.0, so the whole toolchain is pinned to 24.
+      # See docs/DECISIONS.md D-015.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Type-aware ESLint. The no-floating-promises family is load-bearing here, not cosmetic:
+      # a dropped append() is a lost record. See eslint.config.mjs.
+      - name: Lint
+        run: pnpm lint
+
+      # Formatting is owned by Prettier; eslint-config-prettier disables the overlapping rules
+      # so the two tools can never disagree about where a line break goes.
+      - name: Format
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+      # Named invariants must be specified and cross-consistent. Currently verifies the
+      # specification only; becomes a behavioural check when packages/broker exists.
+      - name: Safety invariants
+        run: pnpm check:invariants
+
+      # Vendored Apache-2.0 components must keep LICENSE and NOTICE.
+      - name: Third-party notices
+        run: pnpm check:notices

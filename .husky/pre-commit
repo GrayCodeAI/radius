@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Pre-commit: lint and format only what is actually staged.
+#
+# Runs the same checks as CI, scoped to the staged files, so a commit that would fail
+# `pnpm lint` / `pnpm format:check` in CI cannot reach the branch in the first place.
+#
+# lint-staged stashes non-staged changes, runs these, and restores — so an unrelated dirty
+# working tree does not block an otherwise clean commit.
+pnpm exec lint-staged

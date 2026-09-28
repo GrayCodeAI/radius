@@ -1,0 +1,27 @@
+k-carrier
+Copyright 2026 Botiverse
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Design influences — concepts studied, no code copied
+-----------------------------------------------------
+k-carrier's design was informed by studying other installers and updaters.
+Only architectural concepts were borrowed; no source code was copied, and the
+implementation here is original.
+
+- External installer boundary and self-update execution model are informed by Rustup's rustup-init and self-update flow (rust-lang/rustup, client installer/self-update). Concept only; no source code copied.
+
+- Two-slot upgrade transaction (stable/experiment slots with promote/rollback)
+  and the "the installer is itself a managed package" fleet model are inspired
+  by Datadog's fleet installer (DataDog/datadog-agent, pkg/fleet). Concept only.
+
+- Static-file signed distribution (offline root keys + rotating signing keys)
+  was studied from Tailscale's distsign (tailscale/tailscale, clientupdate/
+  distsign). Concept only. NOTE: k-carrier does NOT currently implement
+  signature verification — it verifies artifact integrity via sha256 + size
+  only. No distsign / signing code is present in this repository.
+
+See docs/prior-art/design-influences.md and
+docs/prior-art/external-runner-research.md for the full analysis, including what each project does
+and where k-carrier deliberately differs (fail-closed restart, post-upgrade
+convergence read-back, and rollback).

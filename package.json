@@ -1,0 +1,73 @@
+{
+  "name": "radius",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "9.15.0",
+      "onFail": "warn"
+    }
+  },
+  "description": "Radius — identified, bounded communication between agents and humans",
+  "author": "Lakshman Patel",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "node -e \"if(!(process.env.npm_config_user_agent||'').startsWith('pnpm/')){console.error('Install with pnpm (corepack pnpm install --frozen-lockfile). npm is only supported for running package scripts.');process.exit(1)}\"",
+    "dev": "turbo run dev",
+    "dev:host": "pnpm --filter @graycode/radius-host dev",
+    "dev:plane": "pnpm --filter @graycode/radius-plane dev",
+    "dev:web": "pnpm --filter @graycode/radius-web dev",
+    "build": "turbo run build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .prettierignore",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json}\" --ignore-path .prettierignore",
+    "check:invariants": "node scripts/check-invariants.mjs",
+    "check:notices": "node scripts/check-notices.mjs",
+    "check:proofs": "node scripts/check-proofs.mjs",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.12.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
+    "prettier": "3.3.3",
+    "turbo": "2.10.4",
+    "typescript": "^5",
+    "typescript-eslint": "8.70.1"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "overrides": {
+      "ws": "^8.21.0",
+      "undici": "^7.28.0",
+      "esbuild": "^0.28.1",
+      "brace-expansion@>=5.0.0 <5.0.6": "5.0.6",
+      "postcss": "^8.5.23"
+    }
+  }
+}

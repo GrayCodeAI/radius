@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "declaration": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    // Relative imports carry their real on-disk `.ts` extension — one convention for src and
+    // test alike, and the same path tsx and node actually resolve at runtime. Under NodeNext
+    // this is otherwise an error, and the usual workaround (allowImportingTsExtensions) forces
+    // noEmit, which would take the build with it. This rewrites `.ts` to `.js` on emit instead,
+    // so `tsc` and `tsx` agree.
+    "rewriteRelativeImportExtensions": true
+  }
+}

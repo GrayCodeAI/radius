@@ -55,3 +55,11 @@ export {
 
 export type { Budget, Reservation } from "./budget.ts";
 export { BudgetExceededError, CostLedger } from "./budget.ts";
+
+export type { Cursor, OutboxEntry, Tenant, TenantResolver } from "./sync.ts";
+export {
+  CursorMerger,
+  Outbox,
+  StaticTenantTable,
+  UnresolvedTenantError,
+} from "./sync.ts";

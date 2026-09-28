@@ -172,12 +172,28 @@ and CI installs it. Any local development on Node 22 will fail to install the de
 Follow antiproton's crash-matrix idea: interrupt at every point (before-journal,
 after-journal, after-action) and assert the invariant holds.
 
-- [ ] Fuzz the kill point across the upgrade state machine
-- [ ] Assert `never_dual_run` and `never_bricked` behaviourally, not just by trusting the proofs
-- [ ] Test laptop sleep/wake and network loss as first-class cases
+- [x] Fuzz the kill point across the write path (2026-09-28) —
+      `apps/agent-host/test/durability-harness.test.ts`
+- [x] Assert the surviving stream is a valid prefix, behaviourally
+- [x] Test cursor resume against a truncated stream
+- [ ] Assert `never_dual_run` / `never_bricked` for the **upgrade** state machine — blocked on
+      k-carrier integration (D-004), not on this harness
 
 CAUTION: **Do not skip offline.** The cursor contract supports offline-first, but only if we use it
 that way. A laptop that sleeps mid-run is the normal case, not the edge case.
+
+**What this harness actually asserts, and what it does not.** It truncates the durable file at
+_every byte offset_ and asserts what survives is always a contiguous prefix `[0..k]` — never a
+gap, never a duplicate, never a half-written record. It also replays a truncated stream and
+asserts the resume yields every later record exactly once.
+
+It does **not** assert "nothing is lost", because that is false and `RecordWriter` documents why:
+a record observed but not yet fsync'd dies with the process. What is asserted is the pair that
+actually matters to an operator — a corrupt prefix is unacceptable, a lost tail is expected.
+
+The remaining 0.4 item is the _upgrade_ half, and it is blocked on k-carrier integration rather
+than on any missing test. The Lean proofs cover the upgrade transition relation
+(`pnpm check:proofs` re-verifies them), but nothing behavioural exercises our use of it yet.
 
 ---
 

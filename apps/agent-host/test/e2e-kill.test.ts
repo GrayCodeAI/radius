@@ -44,6 +44,12 @@ import { RecordStore } from "../src/record-store.ts";
 
 const ENABLED = process.env.RADIUS_E2E === "1";
 const RUNTIME = process.env.RADIUS_E2E_RUNTIME ?? "claude";
+/**
+ * How long the child is allowed to run before it SIGKILLs itself. Short by default so the
+ * kill has a real chance of landing mid-generation rather than after a completed turn.
+ * Lower it further to aim at a colder harness.
+ */
+const KILL_MS = Number(process.env.RADIUS_E2E_KILL_MS ?? "12000");
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SESSION_HOST = new URL("../src/session-host.ts", import.meta.url).href;
@@ -77,7 +83,7 @@ describe("e2e — a real session killed mid-turn", { skip: SKIP }, () => {
       host.session.events(() => {});
 
       process.stdout.write("READY\\n");
-      setInterval(() => {}, 1000);
+      setTimeout(() => { process.kill(process.pid, "SIGKILL"); }, ${KILL_MS});
     `;
 
     // spawnSync with a timeout delivers a REAL SIGKILL from the OS — not a simulated failure.
@@ -100,14 +106,30 @@ describe("e2e — a real session killed mid-turn", { skip: SKIP }, () => {
         `stderr: ${child.stderr.slice(0, 800)}`,
     );
 
-    const seqs: number[] = [];
-    for await (const r of new RecordStore({ dir }).readAfter(streamId, -1)) {
-      seqs.push(r.seq);
-    }
+    const records = [];
+    for await (const r of new RecordStore({ dir }).readAfter(streamId, -1))
+      records.push(r);
+    const seqs = records.map((r) => r.seq);
 
     assert.ok(
       seqs.length > 0,
       "the killed session produced records; otherwise this proves nothing",
+    );
+
+    // Report which case this run actually hit, so a green tick cannot be read as proof of a
+    // mid-generation kill that may not have happened. A finished turn leaves a terminal
+    // `result/*` frame; its absence means output was still streaming when the kill landed.
+    const turnCompleted = records.some((r) => {
+      const native = (r.body as { native?: { type?: string } }).native;
+      return (
+        typeof native?.type === "string" && native.type.startsWith("result/")
+      );
+    });
+    t.diagnostic(
+      `kill at ${KILL_MS}ms — ${seqs.length} records durable; turn ` +
+        (turnCompleted
+          ? "had COMPLETED before the kill"
+          : "was STILL IN FLIGHT at the kill"),
     );
 
     // Contiguous from 0. A gap would mean a write vanished in a way the store cannot detect —

@@ -95,9 +95,36 @@ and all five now fail the suite. A passing suite that survives mutation proves n
 
 - [x] oar session binding — `RuntimeRegistry` → `installation` probe → the adapter's
       `StartSession` (2026-09-28). `src/record-writer.ts` + `src/session-host.ts`, 17 tests.
-- [ ] Supervisor lifecycle: start/stop/restart, `agentNoProcessResidency` equivalent
-- [ ] k-carrier integration (path dependency vs. built binary — undecided, D-004)
-- [ ] `kill -9` mid-turn acceptance test end to end through a real oar session
+- [x] Supervisor lifecycle: start/stop/restart, `agentNoProcessResidency` equivalent
+      (2026-09-28). `src/supervisor.ts`, 7 tests.
+- [ ] k-carrier integration (path dependency vs. built binary — D-004; **feasibility now
+      measured**, see `DECISIONS.md` D-004. A path dependency builds clean; a bare
+      `cargo build` does not, because 5 of 6 declared targets are not vendored)
+- [x] `kill -9` mid-turn acceptance test end to end through a real oar session (2026-09-28)
+
+**The e2e gate ran against a real Claude session and passed.** `RADIUS_E2E=1` on a machine with
+`claude` on PATH: 10 records durable after a real SIGKILL, contiguous from `seq 0`, covering all
+three oar record kinds, and replayed identically by a fresh store. The prompt, the `accepted`
+response, `system/init`, the model's `assistant` frame and a terminal `result/success` all
+survived. The store stamped them with _our_ stream name, not oar's native session id — the
+untrusted-name property holding in real conditions, not just in a unit test.
+
+**And the limit of that result, stated rather than buried.** The run reports which case it hit,
+and on this machine the turn _completed_ before the kill — even at a 9s delay. So this proves
+**records survive a hard kill**; it does **not** yet prove a kill _during streaming_ is safe.
+That case is timing-dependent and not deterministically covered. `RADIUS_E2E_KILL_MS` exists to
+aim at it (a cold harness, or a prompt long enough to still be generating), and until someone
+captures a run reporting `turn was STILL IN FLIGHT at the kill`, the mid-generation case is
+unproven.
+
+**Supervisor, and the property that matters.** `AgentSupervisor` is deliberately small; the value
+is in three properties it makes true, each a way unattended agents go wrong: never two writers on
+one stream (`start()` refuses while running — split-brain, one layer up from `never_dual_run`);
+nothing observed left unpersisted (`stop()` drains even when `dispose()` throws); and no process
+residency. The last is tested for real, not mocked: the test spawns an actual OS process, records
+its pid, stops the session, then polls until that pid is gone. A mock asserting "dispose was
+called" would pass while the process lived on, which is the bug that property exists to catch.
+A wedged harness raises `StopTimeoutError` rather than hanging an unattended host forever.
 
 **The session binding's central problem is a type mismatch, not plumbing.** oar delivers records
 through `RawEventObserver = (record: RawEvent) => void` — synchronous, no await, no backpressure

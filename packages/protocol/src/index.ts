@@ -39,3 +39,19 @@ export {
   StaleEpochError,
   hrtimeSource,
 } from "./lease.ts";
+
+export type {
+  ApprovalDecision,
+  ApprovalOutcome,
+  ApprovalRequest,
+  SubmitResult,
+} from "./approvals.ts";
+export {
+  ApprovalConflictError,
+  ApprovalsStore,
+  MissingDenialReasonError,
+  NonHumanDecisionError,
+} from "./approvals.ts";
+
+export type { Budget, Reservation } from "./budget.ts";
+export { BudgetExceededError, CostLedger } from "./budget.ts";

@@ -49,6 +49,41 @@ for a human at a terminal. Wrong for unattended agents. We are the counter-case,
 the opposite position — and should document that we disagree with our own dependency, on the
 record.
 
+## 2. MEASURED, not assumed — re-run with `pnpm probe:runtimes`
+
+Probed 2026-09-28 against the installed CLIs. This is a **measurement**, not a recollection, and
+it is re-runnable so the table cannot silently rot.
+
+| Runtime | Version               | Documents a sandbox | Permission-bypass flag       | Self-updates        |
+| ------- | --------------------- | ------------------- | ---------------------------- | ------------------- |
+| claude  | 2.1.283 (Claude Code) | no                  | **yes**                      | **yes** (`update`)  |
+| codex   | codex-cli 0.157.1     | **yes** (`-s`)      | —                            | **yes** (`update`)  |
+| grok    | grok 1.0.25           | no                  | **yes** (`--always-approve`) | **yes** (`update`)  |
+| kimi    | 0.26.0                | no                  | **yes** (`--yolo`)           | **yes** (`upgrade`) |
+| pi      | 0.85.1                | no                  | —                            | —                   |
+
+**Two things this measurement settles that the prose above only asserted.**
+
+**1. "Sessions run YOLO by default" is now a verified fact, not a quote.** Four of five CLIs
+expose a permission-bypass flag, and oar passes it (`claude --dangerously-skip-permissions`,
+`grok --always-approve`, `kimi --yolo`). The premise this whole product is built on is
+checkable, and it checks out. Only Codex has a documented sandbox at all.
+
+**2. FOUR OF FIVE RUNTIMES SELF-UPDATE — and that generalises I15.**
+
+`k.managed-copy-never-self-upgrades` was recorded for k-carrier: a copy we install and manage
+must never also upgrade itself, or there are two writers on one component. That reasoning is not
+specific to k-carrier. If Radius ever installs and manages a copy of any of the four CLIs above —
+exactly the k-carrier pattern — their built-in `update`/`upgrade` is **the same second writer**.
+
+So the invariant's scope is wider than one vendored component: **every managed binary on the
+host must be upgradeable only by the supervisor.** Recorded in `THREATS.md` as I15, with the
+vendor check asserting k-carrier's copy; this probe is how we notice the condition appearing in a
+new place.
+
+**A documented flag is not a working sandbox.** This measures what each CLI _claims_ to support.
+The isolation any of them actually enforces is still unmeasured, and `SAFETY.md` §3 says so.
+
 ---
 
 ## 3. Capabilities oar exposes

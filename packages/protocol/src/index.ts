@@ -63,3 +63,22 @@ export {
   StaticTenantTable,
   UnresolvedTenantError,
 } from "./sync.ts";
+
+export type {
+  ChangeClass,
+  Envelope,
+  ParsedVersion,
+  ReleaseNote,
+} from "./version.ts";
+export {
+  PROTOCOL_MAJOR,
+  PROTOCOL_MINOR,
+  PROTOCOL_VERSION,
+  BreakingReleaseError,
+  UnsupportedVersionError,
+  assertCompatible,
+  assertVersionBump,
+  classifyRelease,
+  formatVersion,
+  parseVersion,
+} from "./version.ts";

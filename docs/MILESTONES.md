@@ -95,9 +95,36 @@ and all five now fail the suite. A passing suite that survives mutation proves n
 
 - [x] oar session binding — `RuntimeRegistry` → `installation` probe → the adapter's
       `StartSession` (2026-09-28). `src/record-writer.ts` + `src/session-host.ts`, 17 tests.
-- [ ] Supervisor lifecycle: start/stop/restart, `agentNoProcessResidency` equivalent
-- [ ] k-carrier integration (path dependency vs. built binary — undecided, D-004)
-- [ ] `kill -9` mid-turn acceptance test end to end through a real oar session
+- [x] Supervisor lifecycle: start/stop/restart, `agentNoProcessResidency` equivalent
+      (2026-09-28). `src/supervisor.ts`, 7 tests.
+- [ ] k-carrier integration (path dependency vs. built binary — D-004; **feasibility now
+      measured**, see `DECISIONS.md` D-004. A path dependency builds clean; a bare
+      `cargo build` does not, because 5 of 6 declared targets are not vendored)
+- [x] `kill -9` mid-turn acceptance test end to end through a real oar session (2026-09-28)
+
+**The e2e gate ran against a real Claude session and passed.** `RADIUS_E2E=1` on a machine with
+`claude` on PATH: 10 records durable after a real SIGKILL, contiguous from `seq 0`, covering all
+three oar record kinds, and replayed identically by a fresh store. The prompt, the `accepted`
+response, `system/init`, the model's `assistant` frame and a terminal `result/success` all
+survived. The store stamped them with _our_ stream name, not oar's native session id — the
+untrusted-name property holding in real conditions, not just in a unit test.
+
+**And the limit of that result, stated rather than buried.** The run reports which case it hit,
+and on this machine the turn _completed_ before the kill — even at a 9s delay. So this proves
+**records survive a hard kill**; it does **not** yet prove a kill _during streaming_ is safe.
+That case is timing-dependent and not deterministically covered. `RADIUS_E2E_KILL_MS` exists to
+aim at it (a cold harness, or a prompt long enough to still be generating), and until someone
+captures a run reporting `turn was STILL IN FLIGHT at the kill`, the mid-generation case is
+unproven.
+
+**Supervisor, and the property that matters.** `AgentSupervisor` is deliberately small; the value
+is in three properties it makes true, each a way unattended agents go wrong: never two writers on
+one stream (`start()` refuses while running — split-brain, one layer up from `never_dual_run`);
+nothing observed left unpersisted (`stop()` drains even when `dispose()` throws); and no process
+residency. The last is tested for real, not mocked: the test spawns an actual OS process, records
+its pid, stops the session, then polls until that pid is gone. A mock asserting "dispose was
+called" would pass while the process lived on, which is the bug that property exists to catch.
+A wedged harness raises `StopTimeoutError` rather than hanging an unattended host forever.
 
 **The session binding's central problem is a type mismatch, not plumbing.** oar delivers records
 through `RawEventObserver = (record: RawEvent) => void` — synchronous, no await, no backpressure
@@ -145,12 +172,28 @@ and CI installs it. Any local development on Node 22 will fail to install the de
 Follow antiproton's crash-matrix idea: interrupt at every point (before-journal,
 after-journal, after-action) and assert the invariant holds.
 
-- [ ] Fuzz the kill point across the upgrade state machine
-- [ ] Assert `never_dual_run` and `never_bricked` behaviourally, not just by trusting the proofs
-- [ ] Test laptop sleep/wake and network loss as first-class cases
+- [x] Fuzz the kill point across the write path (2026-09-28) —
+      `apps/agent-host/test/durability-harness.test.ts`
+- [x] Assert the surviving stream is a valid prefix, behaviourally
+- [x] Test cursor resume against a truncated stream
+- [ ] Assert `never_dual_run` / `never_bricked` for the **upgrade** state machine — blocked on
+      k-carrier integration (D-004), not on this harness
 
 CAUTION: **Do not skip offline.** The cursor contract supports offline-first, but only if we use it
 that way. A laptop that sleeps mid-run is the normal case, not the edge case.
+
+**What this harness actually asserts, and what it does not.** It truncates the durable file at
+_every byte offset_ and asserts what survives is always a contiguous prefix `[0..k]` — never a
+gap, never a duplicate, never a half-written record. It also replays a truncated stream and
+asserts the resume yields every later record exactly once.
+
+It does **not** assert "nothing is lost", because that is false and `RecordWriter` documents why:
+a record observed but not yet fsync'd dies with the process. What is asserted is the pair that
+actually matters to an operator — a corrupt prefix is unacceptable, a lost tail is expected.
+
+The remaining 0.4 item is the _upgrade_ half, and it is blocked on k-carrier integration rather
+than on any missing test. The Lean proofs cover the upgrade transition relation
+(`pnpm check:proofs` re-verifies them), but nothing behavioural exercises our use of it yet.
 
 ---
 
@@ -178,10 +221,26 @@ Principal
 └── createdAt / revokedAt
 ```
 
-- [ ] Define in `packages/protocol`
-- [ ] **Deliberate omission:** no field holds a raw secret. Ever. If you need one, the design
-      is wrong.
-- [ ] Serialize/deserialize round-trip tests
+- [x] Define in `packages/protocol` (2026-09-28) — `src/principal.ts`, 12 tests
+- [x] **Deliberate omission:** no field holds a raw secret. Made structural, not conventional
+- [x] Serialize/deserialize round-trip tests
+- [ ] `decided_by` enforcement wired to a real `approvals` table (phase 2 — needs the DO)
+
+**The omission is structural, which is the only reason to believe it.** `DATA-MODEL.md` §2 says
+in capitals that no column may hold a raw credential, and §4 asks for "a test that scans for it.
+Not a code-review convention." So: `Principal` has no `token`/`secret`/`apiKey` field;
+`parsePrincipal` **rejects unknown fields**, so a secret cannot ride in through an untyped JSON
+bag; and the tests grep serialized principals _and_ grants for nine secret shapes — Anthropic,
+OpenAI, GitHub, AWS, Slack, Google, PEM private keys, JWTs, and `api_key=`-style assignments.
+
+The scanner carries a **positive control** that plants a real-looking AWS key and requires
+detection. Without it, a scanner matching nothing would pass every other test in the file and
+look convincingly green.
+
+**Also decided here, and worth writing down:** `CapabilityGrant.expiresAt` is a _required_ field
+in the type. `DATA-MODEL.md` §2 marks it "**required.** Default lease 1 hour, per D-008" — so a
+permanent grant is now unrepresentable rather than merely discouraged, which is what
+`PROTOCOL.md` §6 actually asks for.
 
 ### 1.2 — Credential broker
 
@@ -195,6 +254,14 @@ traffic is brokered. The raw credential never enters agent context or memory.
 - [ ] Audit every request: principal, capability, decision, timestamp
 - [ ] Loopback only, per-launch nonce, unguessable
 - [ ] **No secret in any log line, ever** — add a test that greps for it
+
+**NOT STARTED, deliberately.** The proxy, revocation and audit are all buildable today, but real
+credential scoping is not: it needs live provider keys for Anthropic/OpenAI/Google/xAI. A broker
+that looks finished while credentials escape would be the single worst thing this project could
+ship — it makes the pitch true-looking and false, which is the failure mode everything else here
+exists to prevent. The contract is now concrete (`CapabilityGrant` in `packages/protocol`), which
+is what makes building it safe rather than speculative. It should not be called done until a real
+key has been scoped, revoked, and shown unreachable from agent context.
 
 CAUTION: **The one hard invariant, from agent-vault:** a value that must not leak must be
 _structurally_ unreachable, not merely "we chose not to log it." agent-vault enforces this
@@ -227,10 +294,39 @@ native sandbox; per-runtime behavior differs. Budget for it and write the matrix
 The primitive oar explicitly declines: _"Ownership is the object reference; no in-process
 lease. Multi-controller arbitration belongs to the application layer."_
 
-- [ ] One controller per session; leases are the exclusive claim
-- [ ] Clock-skew tolerance (leases expire on observation, not on the holder's clock)
-- [ ] A new controller can take over a dead one
-- [ ] Split-brain is impossible — **test it, don't reason about it**
+- [x] One controller per session; leases are the exclusive claim (2026-09-28)
+- [x] Clock-skew tolerance (leases expire on observation, not on the holder's clock)
+- [x] A new controller can take over a dead one
+- [x] Split-brain is impossible — **tested, not reasoned about**
+- [x] Wall-clock rollback cannot extend a lease (D-008 Q4)
+
+`packages/protocol/src/lease.ts`, 13 tests. This is the highest-leverage item in Phase 1,
+because it is what turns three _prose_ invariants into enforced code:
+
+| Invariant | Now enforced by                                   | Was            |
+| --------- | ------------------------------------------------- | -------------- |
+| **I3**    | `assertWritable` refuses an expired lease         | specified only |
+| **I5**    | a stale epoch is rejected on every write          | specified only |
+| **I14**   | a rewound `Date.now()` cannot revive a dead lease | specified only |
+
+`check:invariants` now reports the split honestly — `11 specified only, 3 enforced in code,
+1 verified against vendored source` — instead of implying the whole table was prose.
+
+**Expiry is computed from `process.hrtime`, never `Date.now()`.** The user owns the wall clock;
+a lease enforced against it can be extended by one `date` command. The wall clock is recorded in
+the anchor for audit and never consulted for expiry.
+
+**The restart case is the subtle one, and D-008 calls it out by name.** A restart _resets_ the
+monotonic clock, so its reading is meaningless across a restart. `LeaseManager.restore` adopts a
+persisted anchor — and **drops** any lease whose window already elapsed while the process was
+down. Reviving it would let a rewound clock resurrect a dead lease, which is the entire attack
+the monotonic design exists to stop.
+
+**Split-brain is tested, not argued.** The test acquires a lease, lets it expire, takes it over,
+then has the _original holder_ — which has no idea it lost anything — attempt five writes. All
+five are refused on the epoch. The same test proves a stale holder cannot renew, release, or
+extend the new holder's lease. A mutation removing the epoch check, dropping the expiry check,
+switching expiry to `Date.now()`, or freezing the epoch counter each fail the suite.
 
 ### 1.5 — Invariant checker
 

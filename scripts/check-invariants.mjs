@@ -144,6 +144,23 @@ const ADOPTED_VENDOR_INVARIANTS = [
 /** Invariant ids above that are satisfied by the vendored check rather than by prose. */
 const VENDORED_INVARIANT_IDS = new Set(["I15"]);
 
+/**
+ * Invariant ids that are enforced in OUR code, with a test that fails if violated.
+ *
+ * Added 2026-09-28 with `packages/protocol`. Until this existed the honest count was "14 of 15
+ * are specified only", and a reader could reasonably assume the whole table was prose.
+ *
+ * Each entry names the test that would fail if the behaviour regressed, so this set can be
+ * audited rather than believed:
+ *   I3  expired lease refused on write   — packages/protocol/test/lease.test.ts
+ *   I5  stale epoch rejected on write    — packages/protocol/test/lease.test.ts
+ *   I14 wall-clock rollback cannot revive a lease — packages/protocol/test/lease.test.ts
+ *
+ * A claim is only as good as the test that would catch its removal. If one of these stops being
+ * enforced, remove it from this set in the same commit that removes the enforcement.
+ */
+const ENFORCED_INVARIANT_IDS = new Set(["I3", "I5", "I14"]);
+
 const problems = [];
 const notes = [];
 
@@ -336,13 +353,15 @@ if (existsSync(brokerSrc)) {
   radiusEnforced = readdirSync(brokerSrc).some((f) => f.endsWith(".ts"));
 }
 const specCount = INVARIANTS.filter(
-  ([id]) => !VENDORED_INVARIANT_IDS.has(id),
+  ([id]) => !VENDORED_INVARIANT_IDS.has(id) && !ENFORCED_INVARIANT_IDS.has(id),
 ).length;
 if (!radiusEnforced) {
   notes.push(
-    `${specCount} of ${INVARIANTS.length} invariants (I1–I${specCount}) are SPECIFIED only — ` +
-      `packages/broker does not exist.\n` +
-      `        They are not enforced in code. Do not read a pass as a guarantee.\n` +
+    `${specCount} of ${INVARIANTS.length} invariants are SPECIFIED only — packages/broker does ` +
+      `not exist.\n` +
+      `        Those are NOT enforced in code. Do not read a pass as a guarantee.\n` +
+      `        ${ENFORCED_INVARIANT_IDS.size} (${[...ENFORCED_INVARIANT_IDS].join(", ")}) ARE ` +
+      `enforced in packages/protocol, with tests that fail if violated.\n` +
       `        ${ADOPTED_VENDOR_INVARIANTS.length} (${[...VENDORED_INVARIANT_IDS].join(", ")}) ` +
       `IS checked against real vendored source.`,
   );
@@ -400,7 +419,8 @@ if (problems.length > 0) {
 // reader ends up believing 15 things are enforced when 1 is.
 console.log(
   `check:invariants OK — ${INVARIANTS.length} invariants mapped ` +
-    `(${specCount} specified, ${ADOPTED_VENDOR_INVARIANTS.length} verified against vendored source)`,
+    `(${specCount} specified only, ${ENFORCED_INVARIANT_IDS.size} enforced in code, ` +
+    `${ADOPTED_VENDOR_INVARIANTS.length} verified against vendored source)`,
 );
 for (const n of notes) console.error(`\n  note: ${n}`);
 console.error("");

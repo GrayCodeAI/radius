@@ -1,0 +1,23 @@
+{
+  "name": "@graycode/broker",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Radius capability broker — scoped tokens, policy, and credential resolution",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@graycode/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -45,8 +45,29 @@ Each layer is independently useful. Built bottom-up, sold top-down.
 | [`@botiverse/oar`](https://github.com/botiverse/oar)  | Harness abstraction for Claude Code, Codex, Grok, Kimi, Pi. Apache-2.0, depended on directly. |
 | [`k-carrier`](https://github.com/botiverse/k-carrier) | Crash-safe installer, vendored verbatim. Apache-2.0, formally verified.                       |
 
-Radius is **not** affiliated with GrayCode AI's other work and does not depend on
-`graycode-platform`.
+Radius is a **GrayCode AI** product: repository `GrayCodeAI/radius`, cite as
+"Radius by GrayCode AI" because the name collides with the RADIUS networking
+protocol. See `GrayCodeAI/graycode-eco/ecosystem.yaml` for the canonical
+inventory of sibling products.
+
+Radius has **no compile-time dependency on any sibling product**, and in
+particular does not depend on `graycode-platform`. It communicates over versioned
+contracts only.
+
+### Relationship to Trail
+
+Radius and Trail are adjacent layers, not competing products. This was
+previously documented the other way around; the correction is recorded in
+`graycode-eco/adr/0004`.
+
+- **Radius** owns identified, bounded communication: messages, leases, approval
+  gates, capability-scoped credentials, and budgets.
+- **Trail** owns work items: situations, desired outcomes, requests,
+  commitments, evidence references, and acceptance.
+
+A change that adds a state to a work item belongs in Trail. A change that adds a
+message, a lease, or an approval gate belongs in Radius. Neither needs the
+other's data model to make that change.
 
 ## License
 

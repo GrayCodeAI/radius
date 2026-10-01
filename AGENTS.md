@@ -111,6 +111,13 @@ mirroring oar's `oar-voyage/1` habit.
 
 - Radius is a **product** repo. It is not a `graycode-platform` dependency, and
   `graycode-platform` is not a Radius dependency.
+- Radius has **no compile-time dependency on any sibling product**. It
+  communicates over versioned contracts only.
 - `rho`, `flux`, and the other GrayCode projects must build, test, and run fully without this repo.
+- Radius owns bounded communication. Trail owns work items. See
+  [graycode-eco/adr/0004](https://github.com/GrayCodeAI/graycode-eco/blob/main/adr/README.md).
+- The canonical inventory of sibling products is
+  [graycode-eco/ecosystem.yaml](https://github.com/GrayCodeAI/graycode-eco/blob/main/ecosystem.yaml).
+  Do not maintain a local copy.
 - For graycode-eco-wide agent guidelines, see
   [rho/AGENTS.md](https://github.com/GrayCodeAI/rho/blob/main/AGENTS.md).
